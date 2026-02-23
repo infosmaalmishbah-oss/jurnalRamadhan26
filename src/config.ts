@@ -9,7 +9,7 @@ import {
 } from 'lucide-react';
 import { CategoryConfig } from './types';
 
-export const GAS_URL = 'https://script.google.com/macros/s/AKfycbyMZp_Ee7Y4UJTkKK_EkNpjj2-EDhd1InDM3eecBorwsnRYavoy2nxbXHn_3_uCa6b4/exec';
+export const GAS_URL = import.meta.env.VITE_GAS_URL;
 export const DEMO_MODE = false;
 
 export const DEMO_STUDENTS: Record<string, any> = {
