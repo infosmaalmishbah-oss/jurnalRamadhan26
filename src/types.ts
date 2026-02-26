@@ -34,3 +34,14 @@ export interface CategoryConfig {
   gradient: string;
   fields: FieldConfig[];
 }
+
+export interface Message {
+  id: string;
+  tanggal: string; // ISO or date string
+  hari?: string; // optional day number
+  nisn?: string;
+  nama?: string;
+  kelas?: string;
+  pesan: string;
+  reply?: string;
+}

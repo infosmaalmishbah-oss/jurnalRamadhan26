@@ -155,13 +155,42 @@ export default function Login({ onLogin }: LoginProps) {
           </button>
         </form>
 
-        <p className="text-center text-white/70 text-xs mt-6 flex items-center justify-center gap-1">
+        <p className="text-center text-black/70 text-xs mt-6 flex items-center justify-center gap-1">
           <Lock size={12} /> Gunakan NISN yang terdaftar di sistem
         </p>
       </div>
       <div className="mt-8 text-center text-white/60 text-sm flex items-center justify-center gap-2">
         <Moon size={16} /> Ramadhan Kareem 1446 H
       </div>
+
+      {/* Hidden admin access: click the small corner to enter admin password */}
+      <div onClick={async () => {
+        const { value: password } = await Swal.fire({
+          title: 'Admin Login',
+          input: 'password',
+          inputLabel: 'Masukkan password admin',
+          showCancelButton: true,
+          confirmButtonText: 'Masuk',
+          inputAttributes: { autocapitalize: 'off', autocorrect: 'off' }
+        });
+
+        if (password) {
+          try {
+            const res = await fetch(`${GAS_URL}?action=adminLogin&password=${encodeURIComponent(String(password))}`);
+            const result = await res.json();
+            if (result.success) {
+              sessionStorage.setItem('isAdmin', 'true');
+              Swal.fire({ icon: 'success', title: 'Akses Admin', text: 'Mengarahkan ke Dashboard...' });
+              window.location.reload();
+            } else {
+              Swal.fire({ icon: 'error', title: 'Gagal', text: result.message || 'Password salah' });
+            }
+          } catch (err) {
+            console.error('Admin login error', err);
+            Swal.fire({ icon: 'error', title: 'Gagal', text: 'Tidak dapat terhubung ke server' });
+          }
+        }
+      }} className="fixed left-2 bottom-2 w-6 h-6 opacity-5 hover:opacity-30 cursor-pointer"></div>
     </div>
   );
 }

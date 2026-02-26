@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { User, JournalEntry } from '../types';
 import { KATEGORI_CONFIG, DEMO_MODE, GAS_URL } from '../config';
-import { LogOut, GraduationCap, BadgeCheck, ChartLine, Info, FileDown } from 'lucide-react';
+import { LogOut, GraduationCap, BadgeCheck, ChartLine, Info, FileDown, MessagesSquare } from 'lucide-react';
 import JournalModal from './JournalModal';
+import Chat from './Chat';
 import { generatePDF } from '../utils/pdf';
 import Swal from 'sweetalert2';
 
@@ -12,6 +13,9 @@ interface DashboardProps {
 }
 
 export default function Dashboard({ user, onLogout }: DashboardProps) {
+  const [chatOpen, setChatOpen] = useState(false);
+  const [hasUnread, setHasUnread] = useState(false);
+  const [isAdminMode] = useState(() => sessionStorage.getItem('isAdmin') === 'true');
   const [currentTime, setCurrentTime] = useState(new Date());
   const [jurnalData, setJurnalData] = useState<Record<string, JournalEntry[]>>({});
   const [activeCategory, setActiveCategory] = useState<string | null>(null);
@@ -25,6 +29,45 @@ export default function Dashboard({ user, onLogout }: DashboardProps) {
   useEffect(() => {
     loadJurnalData();
   }, [user.nisn]);
+
+  // check for unread replies on login (non-admin)
+  useEffect(() => {
+    if (isAdminMode) return;
+    const checkUnread = async () => {
+      try {
+        const seenKey = `seen_chat_reply_${user.nisn}`;
+        const seen: string[] = JSON.parse(sessionStorage.getItem(seenKey) || '[]');
+
+        if (DEMO_MODE) {
+          const local = JSON.parse(localStorage.getItem('demo_chat') || '[]');
+          const unseen = local.filter((m: any) => m.reply && !seen.includes(m.id));
+          if (unseen.length > 0) {
+            setHasUnread(true);
+            const messagesText = unseen.map((u: any) => `${u.nama || u.nisn}: ${u.reply}`).join('\n\n');
+            Swal.fire({ icon: 'info', title: 'Anda mendapat balasan', html: `<pre style="text-align:left">${messagesText}</pre>` , confirmButtonColor: '#1B5E20' });
+            const merged = Array.from(new Set([...seen, ...unseen.map((u: any) => u.id)]));
+            sessionStorage.setItem(seenKey, JSON.stringify(merged));
+          }
+        } else {
+          const res = await fetch(`${GAS_URL}?action=getMessages&nisn=${user.nisn}`);
+          const result = await res.json();
+          if (result.success) {
+            const unseen = (result.data || []).filter((m: any) => m.reply && !seen.includes(m.id));
+            if (unseen.length > 0) {
+              setHasUnread(true);
+              const messagesText = unseen.map((u: any) => `${u.nama || u.nisn}: ${u.reply}`).join('\n\n');
+              Swal.fire({ icon: 'info', title: 'Anda mendapat balasan', html: `<pre style="text-align:left">${messagesText}</pre>` , confirmButtonColor: '#1B5E20' });
+              const merged = Array.from(new Set([...seen, ...unseen.map((u: any) => u.id)]));
+              sessionStorage.setItem(seenKey, JSON.stringify(merged));
+            }
+          }
+        }
+      } catch (err) {
+        console.error('Check unread error', err);
+      }
+    };
+    checkUnread();
+  }, [user.nisn, isAdminMode]);
 
   const loadJurnalData = async () => {
     setLoading(true);
@@ -283,6 +326,14 @@ export default function Dashboard({ user, onLogout }: DashboardProps) {
           onSave={(entry) => handleSaveEntry(activeCategory, entry)}
         />
       )}
+
+      {/* Floating Chat Button */}
+      <button onClick={() => { setChatOpen(true); setHasUnread(false); }} className="fixed right-6 bottom-6 z-50 bg-islamic-green text-white w-14 h-14 rounded-full shadow-lg flex items-center justify-center">
+        <MessagesSquare size={22} />
+        {hasUnread && <span className="absolute right-4 top-2 w-3 h-3 bg-red-600 rounded-full ring-2 ring-white" />}
+      </button>
+
+      <Chat user={user} isOpen={chatOpen} onClose={() => setChatOpen(false)} isAdmin={isAdminMode} />
     </div>
   );
 }
