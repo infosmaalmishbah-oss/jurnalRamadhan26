@@ -313,7 +313,7 @@ export default function Dashboard({ user, onLogout }: DashboardProps) {
 
       <footer className="max-w-4xl mx-auto px-4 py-6 text-center text-gray-500 text-sm border-t border-gray-200">
         <p>SMAS Al-Mishbah Quranic School Banda Aceh</p>
-        <p className="text-xs mt-1">Ramadhan 1446 H / 2025 M</p>
+        <p className="text-xs mt-1">Ramadhan 1447 H / 2026 M</p>
       </footer>
 
       {activeCategory && (

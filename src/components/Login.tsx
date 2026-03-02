@@ -160,7 +160,7 @@ export default function Login({ onLogin }: LoginProps) {
         </p>
       </div>
       <div className="mt-8 text-center text-green/60 text-sm flex items-center justify-center gap-2">
-        <Moon size={16} /> Ramadhan Kareem 1446 H
+        <Moon size={16} /> Ramadhan Kareem 1447 H
       </div>
 
       {/* Hidden admin access: click the small corner to enter admin password */}
