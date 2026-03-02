@@ -159,7 +159,7 @@ export default function Login({ onLogin }: LoginProps) {
           <Lock size={12} /> Gunakan NISN yang terdaftar di sistem
         </p>
       </div>
-      <div className="mt-8 text-center text-white/60 text-sm flex items-center justify-center gap-2">
+      <div className="mt-8 text-center text-green/60 text-sm flex items-center justify-center gap-2">
         <Moon size={16} /> Ramadhan Kareem 1446 H
       </div>
 
