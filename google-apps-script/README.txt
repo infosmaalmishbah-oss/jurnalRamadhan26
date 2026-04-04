@@ -12,4 +12,14 @@ POST action updateSettings — body { adminPassword, jurnalInputEnabled }.
   Wajib set ADMIN_PASSWORD di Script properties. Jika jurnalInputEnabled=false,
   siswa tidak bisa saveJurnal (server menolak).
 
+Sheet "manual_jurnal" (otomatis dibuat saat pertama kali dipakai):
+  Kolom: nisn | enabled (TRUE/FALSE) | period_start | period_end | catatan | rows_synced_at | updated_at
+  Menandai siswa yang jurnal aslinya di kertas; getData mengembalikan _paperManual + override _progress bila enabled;
+  saveJurnal ditolak untuk siswa tersebut (hindari dobel entri digital).
+
+POST action setPaperManual — body JSON:
+  { adminPassword, nisn, enabled, periodStart?, periodEnd?, catatan?, applySheetRows?, tanggalReferensi? }
+  Jika enabled=true dan applySheetRows=true, menambah paling banyak 7 baris rekonsiliasi (id berawalan PAPER|…)
+  di tiap sheet jurnal yang belum punya bundel PAPER untuk NISN tersebut.
+
 Pastikan URL deployment sama dengan VITE_GAS_URL di frontend.

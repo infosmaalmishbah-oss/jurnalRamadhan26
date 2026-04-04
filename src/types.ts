@@ -59,11 +59,24 @@ export interface AdminStudentProgressRow {
   kelas: string;
   jenisKelamin?: string;
   isAdmin?: boolean;
+  /** Jurnal di kertas — rekonsiliasi administratif (sheet `manual_jurnal` di GAS). */
+  paperManual?: boolean;
+  paperPeriodStart?: string;
+  paperPeriodEnd?: string;
+  paperNote?: string;
   counts: Record<string, number>;
   totalEntries: number;
   categoriesFilledToday: number;
   todayPercent: number;
   lastActivity: string | null;
+}
+
+/** Metadata dari `getData` → `_paperManual` */
+export interface PaperManualClientInfo {
+  enabled: boolean;
+  periodStart?: string;
+  periodEnd?: string;
+  note?: string;
 }
 
 export interface AdminProgressPayload {

@@ -1,11 +1,15 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { X, Loader2, ChevronDown, ChevronUp } from 'lucide-react';
-import type { AdminStudentProgressRow, JournalEntry } from '../types';
+import { X, Loader2, ChevronDown, ChevronUp, FileSpreadsheet, FileText, ClipboardList } from 'lucide-react';
+import Swal from 'sweetalert2';
+import type { AdminStudentProgressRow, JournalEntry, PaperManualClientInfo } from '../types';
 import { JURNAL_SHEET_KEYS, JURNAL_SHEET_KEY_LABELS, KATEGORI_CONFIG } from '../config';
 import {
   normalizeGetDataToClient,
   buildStudentDetailAnalysis,
 } from '../utils/studentDetailAnalysis';
+import { downloadDinasStudentWord, downloadDinasStudentExcel } from '../utils/dinasReports';
+import { setPaperManual } from '../utils/paperManualApi';
+import { promptPaperManualPayload } from '../utils/paperManualUi';
 
 const GAS_TO_CLIENT: Record<string, string> = {
   alquran: 'quran',
@@ -17,6 +21,7 @@ interface Props {
   gasUrl: string;
   sheetToday: string;
   onClose: () => void;
+  onOverviewRefresh?: () => void | Promise<void>;
 }
 
 function entryPreview(e: JournalEntry): string {
@@ -39,6 +44,7 @@ export default function StudentDetailModal({
   gasUrl,
   sheetToday,
   onClose,
+  onOverviewRefresh,
 }: Props) {
   const [tab, setTab] = useState<'ringkasan' | 'analisis' | 'entri'>('ringkasan');
   const [loading, setLoading] = useState(true);
@@ -73,6 +79,81 @@ export default function StudentDetailModal({
     () => buildStudentDetailAnalysis(jurnal, student),
     [jurnal, student],
   );
+
+  const paperForExport: PaperManualClientInfo | undefined = student.paperManual
+    ? {
+        enabled: true,
+        periodStart: student.paperPeriodStart,
+        periodEnd: student.paperPeriodEnd,
+        note: student.paperNote,
+      }
+    : undefined;
+
+  const handleDinasWord = async () => {
+    try {
+      await downloadDinasStudentWord(
+        {
+          nama: student.nama,
+          nisn: student.nisn,
+          kelas: student.kelas,
+          jenisKelamin: student.jenisKelamin,
+        },
+        jurnal,
+        paperForExport,
+      );
+      await Swal.fire({ icon: 'success', title: 'Word diunduh', timer: 1400, showConfirmButton: false });
+    } catch (e) {
+      await Swal.fire({
+        icon: 'error',
+        title: 'Gagal',
+        text: e instanceof Error ? e.message : 'Ekspor Word gagal',
+      });
+    }
+  };
+
+  const handleDinasExcel = () => {
+    try {
+      downloadDinasStudentExcel(
+        {
+          nama: student.nama,
+          nisn: student.nisn,
+          kelas: student.kelas,
+          jenisKelamin: student.jenisKelamin,
+        },
+        jurnal,
+        paperForExport,
+      );
+      void Swal.fire({ icon: 'success', title: 'Excel diunduh', timer: 1400, showConfirmButton: false });
+    } catch (e) {
+      void Swal.fire({
+        icon: 'error',
+        title: 'Gagal',
+        text: e instanceof Error ? e.message : 'Ekspor Excel gagal',
+      });
+    }
+  };
+
+  const handlePaperAdmin = async () => {
+    const payload = await promptPaperManualPayload(student);
+    if (!payload) return;
+    try {
+      await setPaperManual(gasUrl, payload);
+      await onOverviewRefresh?.();
+      await Swal.fire({
+        icon: 'success',
+        title: 'Tersimpan',
+        text: 'Pengaturan laporan kertas diperbarui.',
+        timer: 1800,
+        showConfirmButton: false,
+      });
+    } catch (e) {
+      await Swal.fire({
+        icon: 'error',
+        title: 'Gagal',
+        text: e instanceof Error ? e.message : 'Tidak dapat menyimpan',
+      });
+    }
+  };
 
   const [openCats, setOpenCats] = useState<Record<string, boolean>>({});
 
@@ -111,14 +192,48 @@ export default function StudentDetailModal({
             <p className="text-[11px] text-gray-500 dark:text-gray-500 mt-1">
               Tanggal sheet (hari ini): {sheetToday}
             </p>
+            {student.paperManual ? (
+              <p className="text-[11px] text-amber-800 dark:text-amber-200 mt-1 font-medium">
+                Mode laporan kertas aktif
+                {student.paperPeriodStart && student.paperPeriodEnd
+                  ? ` · period ${student.paperPeriodStart}–${student.paperPeriodEnd}`
+                  : ''}
+              </p>
+            ) : null}
           </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="shrink-0 rounded-lg p-2 text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800"
-          >
-            <X size={22} />
-          </button>
+          <div className="flex flex-wrap items-center gap-1 shrink-0 justify-end max-w-[14rem] sm:max-w-none">
+            <button
+              type="button"
+              title="Word dinas (individu)"
+              onClick={() => void handleDinasWord()}
+              className="rounded-lg p-2 text-blue-700 dark:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-950/50"
+            >
+              <FileText size={20} />
+            </button>
+            <button
+              type="button"
+              title="Excel dinas (individu)"
+              onClick={handleDinasExcel}
+              className="rounded-lg p-2 text-emerald-800 dark:text-emerald-300 hover:bg-emerald-50 dark:hover:bg-emerald-950/40"
+            >
+              <FileSpreadsheet size={20} />
+            </button>
+            <button
+              type="button"
+              title="Kelola laporan kertas"
+              onClick={() => void handlePaperAdmin()}
+              className="rounded-lg p-2 text-amber-800 dark:text-amber-200 hover:bg-amber-50 dark:hover:bg-amber-950/40"
+            >
+              <ClipboardList size={20} />
+            </button>
+            <button
+              type="button"
+              onClick={onClose}
+              className="rounded-lg p-2 text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800"
+            >
+              <X size={22} />
+            </button>
+          </div>
         </div>
 
         <div className="px-4 py-3 flex flex-wrap gap-2 border-b border-gray-100 dark:border-gray-800">

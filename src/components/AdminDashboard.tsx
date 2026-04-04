@@ -2,7 +2,9 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ArrowDownAZ,
   ArrowUpAZ,
+  Archive,
   BookOpen,
+  Building2,
   FileSpreadsheet,
   FileText,
   LayoutDashboard,
@@ -22,6 +24,13 @@ import Chat from './Chat';
 import StudentDetailModal from './StudentDetailModal';
 import { fetchFullAdminOverview, type AdminOverview } from '../utils/adminStats';
 import { exportAdminExcel, exportAdminWord } from '../utils/exportReports';
+import {
+  downloadDinasSchoolWord,
+  downloadDinasSchoolExcel,
+  downloadDinasBulkStudentZip,
+} from '../utils/dinasReports';
+import { setPaperManual } from '../utils/paperManualApi';
+import { promptPaperManualPayload } from '../utils/paperManualUi';
 import { fetchAppSettings, updateAppSettings } from '../utils/appSettings';
 
 interface AdminDashboardProps {
@@ -285,7 +294,80 @@ export default function AdminDashboard({ adminUser, onLogout }: AdminDashboardPr
     }
   };
 
-  const colCount = 5 + JURNAL_SHEET_KEYS.length + 4;
+  const handlePaperRow = async (e: React.MouseEvent, s: AdminStudentProgressRow) => {
+    e.stopPropagation();
+    if (!GAS_URL) return;
+    const payload = await promptPaperManualPayload(s);
+    if (!payload) return;
+    try {
+      await setPaperManual(GAS_URL, payload);
+      await refresh();
+      await Swal.fire({
+        icon: 'success',
+        title: 'Tersimpan',
+        timer: 1600,
+        showConfirmButton: false,
+      });
+    } catch (err) {
+      await Swal.fire({
+        icon: 'error',
+        title: 'Gagal',
+        text: err instanceof Error ? err.message : 'Tidak dapat menyimpan',
+      });
+    }
+  };
+
+  const doDinasSchoolWord = async () => {
+    if (!o?.students.length) return;
+    try {
+      await downloadDinasSchoolWord(o.students, o.totals, o.today, o.generatedAt);
+      await Swal.fire({ icon: 'success', title: 'Word dinas sekolah diunduh', timer: 1600, showConfirmButton: false });
+    } catch (e) {
+      console.error(e);
+      await Swal.fire({ icon: 'error', title: 'Gagal', text: 'Ekspor gagal.' });
+    }
+  };
+
+  const doDinasSchoolExcel = () => {
+    if (!o?.students.length) return;
+    try {
+      downloadDinasSchoolExcel(o.students, o.totals, o.today, o.generatedAt);
+      void Swal.fire({ icon: 'success', title: 'Excel dinas sekolah diunduh', timer: 1600, showConfirmButton: false });
+    } catch (e) {
+      console.error(e);
+      void Swal.fire({ icon: 'error', title: 'Gagal', text: 'Ekspor gagal.' });
+    }
+  };
+
+  const doBulkZip = async (format: 'docx' | 'xlsx') => {
+    if (!GAS_URL || !filteredSorted.length) {
+      await Swal.fire({ icon: 'info', title: 'Kosong', text: 'Tidak ada siswa pada filter saat ini.' });
+      return;
+    }
+    const r = await Swal.fire({
+      title: `Unduh ZIP (${format.toUpperCase()})?`,
+      html: `<p class="text-sm">Memproses <strong>${filteredSorted.length}</strong> siswa (hasil filter). Butuh waktu bila banyak.</p>`,
+      showCancelButton: true,
+      confirmButtonColor: '#1B5E20',
+      confirmButtonText: 'Lanjut',
+    });
+    if (!r.isConfirmed) return;
+    try {
+      Swal.fire({ title: 'Membuat arsip…', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+      await downloadDinasBulkStudentZip(GAS_URL, filteredSorted, format);
+      Swal.close();
+      await Swal.fire({ icon: 'success', title: 'ZIP diunduh', timer: 1800, showConfirmButton: false });
+    } catch (e) {
+      Swal.close();
+      await Swal.fire({
+        icon: 'error',
+        title: 'Gagal',
+        text: e instanceof Error ? e.message : 'ZIP gagal',
+      });
+    }
+  };
+
+  const colCount = 6 + JURNAL_SHEET_KEYS.length + 4;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-islamic-light via-white to-green-50 dark:from-gray-950 dark:via-gray-900 dark:to-gray-950 dark:text-gray-100">
@@ -343,6 +425,44 @@ export default function AdminDashboard({ adminUser, onLogout }: AdminDashboardPr
             >
               <FileText size={16} />
               Word
+            </button>
+            <button
+              type="button"
+              onClick={() => void doDinasSchoolWord()}
+              disabled={loading || !o?.students.length}
+              className="inline-flex items-center gap-2 px-3 py-2 rounded-xl border border-indigo-600/40 bg-white dark:bg-gray-800 text-indigo-900 dark:text-indigo-200 text-sm font-medium hover:bg-indigo-50 dark:hover:bg-gray-700 disabled:opacity-50"
+              title="Format administrasi dinas — seluruh sekolah"
+            >
+              <Building2 size={16} />
+              Dinas Word
+            </button>
+            <button
+              type="button"
+              onClick={doDinasSchoolExcel}
+              disabled={loading || !o?.students.length}
+              className="inline-flex items-center gap-2 px-3 py-2 rounded-xl border border-teal-600/40 bg-white dark:bg-gray-800 text-teal-900 dark:text-teal-200 text-sm font-medium hover:bg-teal-50 dark:hover:bg-gray-700 disabled:opacity-50"
+            >
+              <Building2 size={16} />
+              Dinas Excel
+            </button>
+            <button
+              type="button"
+              onClick={() => void doBulkZip('docx')}
+              disabled={loading || !filteredSorted.length}
+              className="inline-flex items-center gap-2 px-3 py-2 rounded-xl border border-violet-600/40 bg-white dark:bg-gray-800 text-violet-900 dark:text-violet-200 text-sm font-medium hover:bg-violet-50 dark:hover:bg-gray-700 disabled:opacity-50"
+              title="ZIP laporan dinas per siswa (filter tabel)"
+            >
+              <Archive size={16} />
+              ZIP siswa DOCX
+            </button>
+            <button
+              type="button"
+              onClick={() => void doBulkZip('xlsx')}
+              disabled={loading || !filteredSorted.length}
+              className="inline-flex items-center gap-2 px-3 py-2 rounded-xl border border-violet-600/40 bg-white dark:bg-gray-800 text-violet-900 dark:text-violet-200 text-sm font-medium hover:bg-violet-50 dark:hover:bg-gray-700 disabled:opacity-50"
+            >
+              <Archive size={16} />
+              ZIP siswa XLSX
             </button>
             <button
               type="button"
@@ -533,6 +653,9 @@ export default function AdminDashboard({ adminUser, onLogout }: AdminDashboardPr
                   </SortTh>
                   <th className="px-3 py-3 font-semibold whitespace-nowrap">JK</th>
                   <th className="px-3 py-3 font-semibold whitespace-nowrap">Peran</th>
+                  <th className="px-2 py-3 font-semibold text-center whitespace-nowrap" title="Laporan manual di kertas">
+                    Kertas
+                  </th>
                   {JURNAL_SHEET_KEYS.map((k) => (
                     <th key={k} className="px-2 py-3 font-semibold text-center whitespace-nowrap">
                       {JURNAL_SHEET_KEY_LABELS[k]}
@@ -599,6 +722,26 @@ export default function AdminDashboard({ adminUser, onLogout }: AdminDashboardPr
                           <span className="text-gray-500">Siswa</span>
                         )}
                       </td>
+                      <td className="px-2 py-2 text-center" onClick={(e) => e.stopPropagation()}>
+                        <button
+                          type="button"
+                          role="switch"
+                          aria-checked={!!s.paperManual}
+                          title={s.paperManual ? 'Laporan kertas aktif — klik untuk nonaktifkan' : 'Aktifkan laporan kertas'}
+                          onClick={(e) => void handlePaperRow(e, s)}
+                          className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border transition-colors ${
+                            s.paperManual
+                              ? 'bg-amber-500 border-amber-600'
+                              : 'bg-gray-200 dark:bg-gray-700 border-gray-300 dark:border-gray-600'
+                          }`}
+                        >
+                          <span
+                            className={`pointer-events-none inline-block h-5 w-5 mt-0.5 rounded-full bg-white shadow transform transition ${
+                              s.paperManual ? 'translate-x-5' : 'translate-x-0.5'
+                            }`}
+                          />
+                        </button>
+                      </td>
                       {JURNAL_SHEET_KEYS.map((k) => (
                         <td key={k} className="px-2 py-2 text-center tabular-nums">
                           {s.counts[k] ?? 0}
@@ -654,6 +797,7 @@ export default function AdminDashboard({ adminUser, onLogout }: AdminDashboardPr
           gasUrl={GAS_URL}
           sheetToday={o.today}
           onClose={() => setDetailStudent(null)}
+          onOverviewRefresh={refresh}
         />
       ) : null}
     </div>

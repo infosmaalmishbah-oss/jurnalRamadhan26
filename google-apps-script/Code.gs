@@ -17,6 +17,9 @@ const SHEET_NAMES = {
 /** Kolom jurnal: urutan kategori untuk agregasi admin */
 const JURNAL_CATEGORIES = ['sahur', 'shalat', 'belajar', 'silaturahmi', 'berbuka', 'alquran', 'jujur'];
 
+/** Sheet metadata: laporan manual di kertas per siswa (buat sendiri jika belum ada) */
+var MANUAL_JURNAL_SHEET = 'manual_jurnal';
+
 // ========== HANDLE REQUEST ==========
 function doGet(e) {
   const action = (e.parameter.action || '').toString();
@@ -58,6 +61,8 @@ function doPost(e) {
         return handleReplyMessage(data);
       case 'updateSettings':
         return handleUpdateSettings(data);
+      case 'setPaperManual':
+        return handleSetPaperManual(data);
       default:
         return sendError('Action tidak dikenali');
     }
@@ -96,6 +101,221 @@ function getHariFromTanggal(tanggal) {
   const date = new Date(tanggal);
   const hari = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
   return hari[date.getDay()];
+}
+
+function verifyAdminPassword(pw) {
+  var adminPwd = PropertiesService.getScriptProperties().getProperty('ADMIN_PASSWORD') || '';
+  if (!adminPwd) return false;
+  return String(pw || '') === adminPwd;
+}
+
+function ensureManualJurnalSheet() {
+  var ss = getSS();
+  var sh = ss.getSheetByName(MANUAL_JURNAL_SHEET);
+  if (!sh) {
+    sh = ss.insertSheet(MANUAL_JURNAL_SHEET);
+    sh.appendRow([
+      'nisn',
+      'enabled',
+      'period_start',
+      'period_end',
+      'catatan',
+      'rows_synced_at',
+      'updated_at'
+    ]);
+  }
+  return sh;
+}
+
+/** @returns {Object.<string, {enabled:boolean,period_start:string,period_end:string,catatan:string}>} */
+function readAllManualFlagsMap() {
+  var out = {};
+  var sh = getSS().getSheetByName(MANUAL_JURNAL_SHEET);
+  if (!sh) return out;
+  var data = sh.getDataRange().getValues();
+  for (var i = 1; i < data.length; i++) {
+    var raw = data[i][0];
+    var nk = normalizeNisn(raw);
+    if (!nk) continue;
+    var en = String(data[i][1] || '')
+      .toUpperCase()
+      .trim();
+    out[nk] = {
+      enabled: en === 'TRUE' || en === '1' || en === 'YES',
+      period_start: data[i][2] ? formatDateString(data[i][2]) : '',
+      period_end: data[i][3] ? formatDateString(data[i][3]) : '',
+      catatan: data[i][4] != null ? String(data[i][4]) : ''
+    };
+  }
+  return out;
+}
+
+function upsertManualJurnalRow(nisnRaw, enabled, periodStart, periodEnd, catatan, rowsSyncedAt) {
+  var sh = ensureManualJurnalSheet();
+  var nk = normalizeNisn(nisnRaw);
+  var data = sh.getDataRange().getValues();
+  var now = Utilities.formatDate(new Date(), TIMEZONE, "yyyy-MM-dd'T'HH:mm:ss");
+  var rowIdx = -1;
+  for (var i = 1; i < data.length; i++) {
+    if (normalizeNisn(data[i][0]) === nk) {
+      rowIdx = i + 1;
+      break;
+    }
+  }
+  var row = [
+    String(nisnRaw),
+    enabled ? 'TRUE' : 'FALSE',
+    periodStart || '',
+    periodEnd || '',
+    catatan || '',
+    rowsSyncedAt || '',
+    now
+  ];
+  if (rowIdx > 0) {
+    sh.getRange(rowIdx, 1, rowIdx, 7).setValues([row]);
+  } else {
+    sh.appendRow(row);
+  }
+}
+
+function sheetHasPaperBundleForNisn(sheet, nKey) {
+  if (!sheet) return false;
+  var data = sheet.getDataRange().getValues();
+  for (var i = 1; i < data.length; i++) {
+    var id = String(data[i][0] || '');
+    if (id.indexOf('PAPER|') !== 0) continue;
+    if (normalizeNisn(data[i][2]) === nKey) return true;
+  }
+  return false;
+}
+
+function buildPaperBundleNote(extraNote, periodStart, periodEnd) {
+  var base =
+    'Bundel jurnal Ramadhan pada media kertas / laporan fisik telah diserahkan ke sekolah. Entri digital ini hanya rekonsiliasi administrasi; isi asli mengacu pada arsip fisik yang diverifikasi wali kelas.';
+  var p = '';
+  if (periodStart && periodEnd) {
+    p =
+      ' Rentang period (kesehatan): ' +
+      periodStart +
+      ' s.d. ' +
+      periodEnd +
+      ' — dicatat untuk kebijakan administrasi, bukan pengganti dokumentasi medis.';
+  } else if (periodStart || periodEnd) {
+    p = ' Catatan period: ' + (periodStart || '') + ' / ' + (periodEnd || '');
+  }
+  var x = extraNote ? ' Catatan sekolah: ' + extraNote : '';
+  return base + p + x;
+}
+
+/**
+ * Satu baris per kategori (7) dengan id PAPER|... — hanya jika belum ada bundel PAPER untuk nisn di sheet tsb.
+ */
+function appendPaperBundleRows(nisnRaw, nama, kelas, tanggal, noteFull) {
+  var nKey = normalizeNisn(nisnRaw);
+  var safeNisn = nisnRaw ? "'" + String(nisnRaw) : '';
+  var puasaKe = 1;
+  var hari = getHariFromTanggal(tanggal);
+  var added = 0;
+  var shortRef = 'Lihat bundel laporan fisik. ' + noteFull.substring(0, 200);
+
+  for (var c = 0; c < JURNAL_CATEGORIES.length; c++) {
+    var cat = JURNAL_CATEGORIES[c];
+    var sheetName = SHEET_NAMES[cat];
+    var sheet = getSheet(sheetName);
+    if (!sheet) continue;
+    if (sheetHasPaperBundleForNisn(sheet, nKey)) continue;
+
+    var id = 'PAPER|' + nKey + '|' + cat + '|' + c + '|' + new Date().getTime();
+    var newRow = [];
+
+    if (cat === 'sahur') {
+      newRow = [id, tanggal, safeNisn, puasaKe, hari, nama, kelas, '', shortRef, '—', noteFull];
+    } else if (cat === 'shalat') {
+      newRow = [
+        id,
+        tanggal,
+        safeNisn,
+        puasaKe,
+        hari,
+        nama,
+        kelas,
+        shortRef,
+        shortRef,
+        shortRef,
+        shortRef,
+        shortRef,
+        shortRef,
+        shortRef,
+        shortRef
+      ];
+    } else if (cat === 'belajar') {
+      newRow = [id, tanggal, safeNisn, puasaKe, hari, nama, kelas, shortRef, '', shortRef, noteFull];
+    } else if (cat === 'silaturahmi') {
+      newRow = [id, tanggal, safeNisn, puasaKe, hari, nama, kelas, 'Laporan fisik', '—', noteFull];
+    } else if (cat === 'berbuka') {
+      newRow = [id, tanggal, safeNisn, puasaKe, hari, nama, kelas, '', shortRef, 'Rumah', '—', noteFull];
+    } else if (cat === 'alquran') {
+      newRow = [id, tanggal, safeNisn, puasaKe, hari, nama, kelas, shortRef, '', '', '', '', noteFull];
+    } else if (cat === 'jujur') {
+      newRow = [id, tanggal, safeNisn, puasaKe, hari, nama, kelas, shortRef, '', shortRef, shortRef, shortRef, noteFull];
+    }
+
+    if (newRow.length > 0) {
+      sheet.appendRow(newRow);
+      added++;
+    }
+  }
+  return added;
+}
+
+function handleSetPaperManual(data) {
+  if (!data || !verifyAdminPassword(data.adminPassword)) {
+    return sendError('Password admin tidak valid atau ADMIN_PASSWORD belum diatur');
+  }
+  var nisn = String(data.nisn || '');
+  if (!nisn) return sendError('NISN wajib');
+  var enabled = data.enabled === true || data.enabled === 'true';
+  var periodStart = data.periodStart ? formatDateString(data.periodStart) : '';
+  var periodEnd = data.periodEnd ? formatDateString(data.periodEnd) : '';
+  var catatan = data.catatan != null ? String(data.catatan) : '';
+  var applySheet = data.applySheetRows === true || data.applySheetRows === 'true';
+  var tanggalRef = data.tanggalReferensi ? formatDateString(data.tanggalReferensi) : formatDateString(new Date());
+
+  var ss = getSS();
+  var sheetSiswa = getSheet(SHEET_NAMES.siswa);
+  if (!sheetSiswa) return sendError('Sheet siswa tidak ditemukan');
+  var sd = sheetSiswa.getDataRange().getValues();
+  var nama = '';
+  var kelas = '';
+  var nKey = normalizeNisn(nisn);
+  for (var i = 1; i < sd.length; i++) {
+    if (normalizeNisn(sd[i][0]) === nKey) {
+      nama = sd[i][1];
+      kelas = sd[i][2];
+      break;
+    }
+  }
+  if (!nama) return sendError('Siswa tidak ditemukan di sheet siswa');
+
+  var noteFull = buildPaperBundleNote(catatan, periodStart, periodEnd);
+  var synced = '';
+  if (enabled && applySheet) {
+    var n = appendPaperBundleRows(nisn, nama, kelas, tanggalRef, noteFull);
+    synced = Utilities.formatDate(new Date(), TIMEZONE, "yyyy-MM-dd'T'HH:mm:ss") + ' (' + n + ' baris)';
+  } else if (!enabled) {
+    synced = '';
+  }
+
+  upsertManualJurnalRow(nisn, enabled, periodStart, periodEnd, catatan, synced);
+
+  return sendSuccess({
+    nisn: nisn,
+    enabled: enabled,
+    periodStart: periodStart,
+    periodEnd: periodEnd,
+    catatan: catatan,
+    sheetRowsApplied: synced
+  });
 }
 
 function sendSuccess(data) {
@@ -257,8 +477,6 @@ function handleGetAllStudentsProgress() {
 
   var totalCat = JURNAL_CATEGORIES.length;
   var list = [];
-  var totalEntriesAll = 0;
-  var sumTodayPct = 0;
 
   for (var key in students) {
     if (!Object.prototype.hasOwnProperty.call(students, key)) continue;
@@ -272,8 +490,6 @@ function handleGetAllStudentsProgress() {
       if (Object.prototype.hasOwnProperty.call(s.counts, k)) totalEntries += s.counts[k];
     }
     var todayPercent = totalCat > 0 ? Math.round((filledToday / totalCat) * 100) : 0;
-    totalEntriesAll += totalEntries;
-    sumTodayPct += todayPercent;
 
     list.push({
       nisn: s.nisn,
@@ -289,9 +505,29 @@ function handleGetAllStudentsProgress() {
     });
   }
 
+  var flags = readAllManualFlagsMap();
+  for (var mi = 0; mi < list.length; mi++) {
+    var mf = flags[normalizeNisn(list[mi].nisn)];
+    if (mf && mf.enabled) {
+      list[mi].paperManual = true;
+      list[mi].paperPeriodStart = mf.period_start || '';
+      list[mi].paperPeriodEnd = mf.period_end || '';
+      list[mi].paperNote = mf.catatan || '';
+      list[mi].categoriesFilledToday = totalCat;
+      list[mi].todayPercent = 100;
+    }
+  }
+
   list.sort(function (a, b) {
     return String(a.nama).localeCompare(String(b.nama), 'id');
   });
+
+  var totalEntriesAll = 0;
+  var sumTodayPct = 0;
+  for (var si = 0; si < list.length; si++) {
+    totalEntriesAll += list[si].totalEntries;
+    sumTodayPct += list[si].todayPercent;
+  }
 
   var nStudents = list.length;
   var avgToday = nStudents > 0 ? Math.round(sumTodayPct / nStudents) : 0;
@@ -350,6 +586,22 @@ function handleGetData(nisn) {
   } catch (e) {
     result._progress = { date: formatDateString(new Date()), filled: 0, total: 7, percent: 0 };
   }
+
+  var pm = readAllManualFlagsMap()[target];
+  if (pm) {
+    result._paperManual = {
+      enabled: pm.enabled,
+      periodStart: pm.period_start || '',
+      periodEnd: pm.period_end || '',
+      note: pm.catatan || ''
+    };
+    if (pm.enabled) {
+      var t2 = formatDateString(new Date());
+      var tc = Object.keys(SHEET_NAMES).length - 2;
+      result._progress = { date: t2, filled: tc, total: tc, percent: 100 };
+    }
+  }
+
   return sendSuccess(result);
 }
 
@@ -415,6 +667,13 @@ function parseJurnalEntry(row, category) {
 function handleSaveJurnal(data) {
   if (isJurnalInputDisabled()) {
     return sendError('Pengisian jurnal ditutup sementara oleh admin sekolah');
+  }
+  var pmFlags = readAllManualFlagsMap();
+  var pmKey = normalizeNisn(data.nisn);
+  if (pmFlags[pmKey] && pmFlags[pmKey].enabled) {
+    return sendError(
+      'Siswa ini tercatat mengumpulkan jurnal pada media kertas/laporan fisik. Penambahan entri digital dinonaktifkan. Hubungi wali kelas untuk koreksi administrasi.'
+    );
   }
   const ss = getSS();
   const category = data.kategori;

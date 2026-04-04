@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { User, JournalEntry } from '../types';
+import { User, JournalEntry, type PaperManualClientInfo } from '../types';
 import { KATEGORI_CONFIG, GAS_URL, STUDENT_DASHBOARD_WARNING } from '../config';
 import { LogOut, GraduationCap, BadgeCheck, ChartLine, Info, FileDown, MessagesSquare, AlertTriangle, Lock } from 'lucide-react';
 import JournalModal from './JournalModal';
@@ -22,6 +22,7 @@ export default function Dashboard({ user, onLogout }: DashboardProps) {
   const [activeCategory, setActiveCategory] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [jurnalInputEnabled, setJurnalInputEnabled] = useState(true);
+  const [paperManual, setPaperManual] = useState<PaperManualClientInfo | null>(null);
 
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
@@ -85,7 +86,20 @@ export default function Dashboard({ user, onLogout }: DashboardProps) {
         const normalized: Record<string, JournalEntry[]> = {};
         const raw = result.data || {};
 
+        const pm = raw._paperManual as PaperManualClientInfo | undefined;
+        if (pm && typeof pm === 'object') {
+          setPaperManual({
+            enabled: !!pm.enabled,
+            periodStart: pm.periodStart,
+            periodEnd: pm.periodEnd,
+            note: pm.note,
+          });
+        } else {
+          setPaperManual(null);
+        }
+
         Object.entries(raw).forEach(([k, arr]) => {
+          if (k.startsWith('_')) return;
           const clientKey = keyMap[k] || k;
           if (!Array.isArray(arr)) {
             normalized[clientKey] = [];
@@ -171,17 +185,22 @@ export default function Dashboard({ user, onLogout }: DashboardProps) {
   
   let filledCategories = 0;
   const totalCategories = Object.keys(KATEGORI_CONFIG).length;
-  
-  Object.keys(KATEGORI_CONFIG).forEach(category => {
+
+  Object.keys(KATEGORI_CONFIG).forEach((category) => {
     if (jurnalData[category]) {
-      const todayEntry = jurnalData[category].find(entry => entry.tanggal === today);
+      const todayEntry = jurnalData[category].find((entry) => entry.tanggal === today);
       if (todayEntry) filledCategories++;
     }
   });
-  
+
+  if (paperManual?.enabled) {
+    filledCategories = totalCategories;
+  }
+
   const progressPercent = Math.round((filledCategories / totalCategories) * 100) || 0;
 
   const inputLocked = !jurnalInputEnabled;
+  const paperLocked = !!paperManual?.enabled;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-islamic-light via-white to-green-50 dark:from-gray-950 dark:via-gray-900 dark:to-gray-950 pr-14">
@@ -238,6 +257,26 @@ export default function Dashboard({ user, onLogout }: DashboardProps) {
             <p className="text-sm text-red-900 dark:text-red-100 leading-relaxed">
               <strong>Pengisian jurnal ditutup</strong> oleh admin sekolah. Anda masih dapat melihat data dan
               mengunduh PDF; penyimpanan entri baru dinonaktifkan hingga admin membuka kembali.
+            </p>
+          </div>
+        ) : null}
+
+        {paperLocked ? (
+          <div
+            role="alert"
+            className="rounded-2xl border border-sky-300 dark:border-sky-800 bg-sky-50 dark:bg-sky-950/40 p-4 flex gap-3 shadow-sm"
+          >
+            <Info className="text-sky-700 dark:text-sky-300 shrink-0 mt-0.5" size={22} />
+            <p className="text-sm text-sky-950 dark:text-sky-100 leading-relaxed">
+              <strong>Jurnal pada media kertas.</strong> Sekolah mencatat bahwa dokumentasi asli Anda berupa
+              laporan tertulis/fisik. Entri di aplikasi ini hanya untuk rekonsiliasi administrasi; isi resmi
+              mengacu pada arsip di wali kelas.
+              {paperManual?.periodStart && paperManual?.periodEnd ? (
+                <>
+                  {' '}
+                  Catatan period (administrasi): {paperManual.periodStart} s.d. {paperManual.periodEnd}.
+                </>
+              ) : null}
             </p>
           </div>
         ) : null}
@@ -310,7 +349,7 @@ export default function Dashboard({ user, onLogout }: DashboardProps) {
                 </div>
                 <h4 className="font-semibold text-gray-800 dark:text-white text-sm">{config.title.replace('Jurnal ', '')}</h4>
                 <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                  {inputLocked ? 'Ketuk untuk lihat riwayat' : config.subtitle}
+                  {inputLocked || paperLocked ? 'Ketuk untuk lihat riwayat' : config.subtitle}
                 </p>
               </button>
             );
@@ -352,7 +391,7 @@ export default function Dashboard({ user, onLogout }: DashboardProps) {
           history={jurnalData[activeCategory] || []}
           onClose={() => setActiveCategory(null)}
           onSave={(entry) => handleSaveEntry(activeCategory, entry)}
-          readOnly={inputLocked}
+          readOnly={inputLocked || paperLocked}
         />
       )}
 
