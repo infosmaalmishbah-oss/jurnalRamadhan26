@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { User, CategoryConfig, JournalEntry } from '../types';
 import { X, History, PlusCircle, Calendar, Hash, Save, Check } from 'lucide-react';
 import Swal from 'sweetalert2';
-import { DEMO_MODE, GAS_URL } from '../config';
+import { GAS_URL } from '../config';
 
 interface JournalModalProps {
   user: User;
@@ -83,8 +83,22 @@ export default function JournalModal({ user, category, config, history, onClose,
     });
 
     try {
-      if (DEMO_MODE) {
-        await new Promise(resolve => setTimeout(resolve, 1000));
+      if (!GAS_URL) throw new Error('VITE_GAS_URL belum diatur');
+      const response = await fetch(GAS_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=UTF-8' },
+        body: JSON.stringify({ action: 'saveJurnal', data: entry }),
+      });
+
+      const respText = await response.text();
+      let result;
+      try {
+        result = respText ? JSON.parse(respText) : {};
+      } catch {
+        throw new Error(`Invalid JSON response: ${respText}`);
+      }
+
+      if (result.success) {
         onSave(entry);
         Swal.fire({
           icon: 'success',
@@ -92,38 +106,11 @@ export default function JournalModal({ user, category, config, history, onClose,
           text: 'Jurnal Anda telah tercatat',
           confirmButtonColor: '#1B5E20',
           timer: 2000,
-          timerProgressBar: true
+          timerProgressBar: true,
         });
         setFormData({});
       } else {
-        const response = await fetch(GAS_URL, {
-          method: 'POST',
-          headers: { 'Content-Type': 'text/plain;charset=UTF-8' },
-          body: JSON.stringify({ action: 'saveJurnal', data: entry })
-        });
-        
-        const respText = await response.text();
-        let result;
-        try {
-          result = respText ? JSON.parse(respText) : {};
-        } catch (err) {
-          throw new Error(`Invalid JSON response: ${respText}`);
-        }
-
-        if (result.success) {
-          onSave(entry);
-          Swal.fire({
-            icon: 'success',
-            title: 'Berhasil Disimpan!',
-            text: 'Jurnal Anda telah tercatat',
-            confirmButtonColor: '#1B5E20',
-            timer: 2000,
-            timerProgressBar: true
-          });
-          setFormData({});
-        } else {
-          throw new Error(result.message || 'Gagal menyimpan data');
-        }
+        throw new Error(result.message || 'Gagal menyimpan data');
       }
     } catch (error: any) {
       console.error('Submit error:', error);

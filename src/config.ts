@@ -7,15 +7,79 @@ import {
   HandHeart,
   Moon
 } from 'lucide-react';
-import { CategoryConfig } from './types';
+import type { CategoryConfig } from './types';
 
 export const GAS_URL = import.meta.env.VITE_GAS_URL;
-export const DEMO_MODE = false;
 
-export const DEMO_STUDENTS: Record<string, any> = {
-  '1234567890': { nama: 'Ahmad Fauzan', kelas: 'XII IPA 1', nisn: '1234567890' },
-  '0987654321': { nama: 'Siti Aisyah', kelas: 'XI IPS 2', nisn: '0987654321' },
-  '1122334455': { nama: 'Muhammad Rizki', kelas: 'X IPA 3', nisn: '1122334455' }
+/** Peringatan di dashboard siswa (bisa override `VITE_STUDENT_DASHBOARD_WARNING`). */
+export const STUDENT_DASHBOARD_WARNING =
+  (import.meta.env.VITE_STUDENT_DASHBOARD_WARNING as string | undefined)?.trim() ||
+  'Isi jurnal Ramadhan setiap hari dengan jujur dan tepat waktu. Data tersimpan ke server sekolah (Google Apps Script). Pastikan jaringan stabil; hubungi wali kelas bila ada kendala.';
+
+/**
+ * NISN akun admin (baris di Sheet Siswa). Login tetap lewat `action=login` GAS;
+ * jika script mengembalikan `isAdmin: true` atau `role: "admin"`, itu yang dipakai.
+ * Daftar ini hanya fallback jika response belum menyertakan flag (koma/spasi di .env).
+ */
+const DEFAULT_ADMIN_NISNS = ['0011223344', '4433221100'] as const;
+
+function parseAdminNisnsFromEnv(): string[] {
+  const raw = (import.meta.env.VITE_ADMIN_NISNS as string | undefined)?.trim();
+  if (!raw) return [...DEFAULT_ADMIN_NISNS];
+  return raw
+    .split(/[\s,]+/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
+
+export const ADMIN_NISNS = parseAdminNisnsFromEnv();
+
+function normalizeNisnDigits(nisn: string): string {
+  return String(nisn)
+    .replace(/^['\s]+/, '')
+    .replace(/\D/g, '')
+    .replace(/^0+/, '');
+}
+
+export function isAdminNisn(nisn: string): boolean {
+  const t = nisn.trim();
+  if (ADMIN_NISNS.includes(t)) return true;
+  const nt = normalizeNisnDigits(t);
+  return ADMIN_NISNS.some((a) => normalizeNisnDigits(a) === nt && nt.length > 0);
+}
+
+/** Setelah `login` GAS sukses: tentukan akses admin dari payload + NISN. */
+export function resolveIsAdmin(
+  nisn: string,
+  data: { isAdmin?: boolean; role?: string },
+): boolean {
+  if (data.isAdmin === true) return true;
+  const r = String(data.role || '')
+    .toLowerCase()
+    .trim();
+  if (r === 'admin' || r === 'administrator' || r === 'pengurus') return true;
+  return isAdminNisn(nisn);
+}
+
+/** Sinkron dengan `JURNAL_CATEGORIES` di `google-apps-script/Code.gs` */
+export const JURNAL_SHEET_KEYS = [
+  'sahur',
+  'shalat',
+  'belajar',
+  'silaturahmi',
+  'berbuka',
+  'alquran',
+  'jujur',
+] as const;
+
+export const JURNAL_SHEET_KEY_LABELS: Record<(typeof JURNAL_SHEET_KEYS)[number], string> = {
+  sahur: 'Sahur',
+  shalat: 'Shalat',
+  belajar: 'Belajar',
+  silaturahmi: 'Silaturahmi',
+  berbuka: 'Berbuka',
+  alquran: 'Al-Quran',
+  jujur: 'Kejujuran',
 };
 
 export const KATEGORI_CONFIG: Record<string, CategoryConfig> = {

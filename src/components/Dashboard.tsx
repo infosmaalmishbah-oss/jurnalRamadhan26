@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { User, JournalEntry } from '../types';
-import { KATEGORI_CONFIG, DEMO_MODE, GAS_URL } from '../config';
-import { LogOut, GraduationCap, BadgeCheck, ChartLine, Info, FileDown, MessagesSquare } from 'lucide-react';
+import { KATEGORI_CONFIG, GAS_URL, STUDENT_DASHBOARD_WARNING } from '../config';
+import { LogOut, GraduationCap, BadgeCheck, ChartLine, Info, FileDown, MessagesSquare, AlertTriangle } from 'lucide-react';
 import JournalModal from './JournalModal';
 import Chat from './Chat';
+import ProgressCalendar from './ProgressCalendar';
 import { generatePDF } from '../utils/pdf';
 import Swal from 'sweetalert2';
 
@@ -15,7 +16,6 @@ interface DashboardProps {
 export default function Dashboard({ user, onLogout }: DashboardProps) {
   const [chatOpen, setChatOpen] = useState(false);
   const [hasUnread, setHasUnread] = useState(false);
-  const [isAdminMode] = useState(() => sessionStorage.getItem('isAdmin') === 'true');
   const [currentTime, setCurrentTime] = useState(new Date());
   const [jurnalData, setJurnalData] = useState<Record<string, JournalEntry[]>>({});
   const [activeCategory, setActiveCategory] = useState<string | null>(null);
@@ -30,17 +30,17 @@ export default function Dashboard({ user, onLogout }: DashboardProps) {
     loadJurnalData();
   }, [user.nisn]);
 
-  // check for unread replies on login (non-admin)
   useEffect(() => {
-    if (isAdminMode) return;
     const checkUnread = async () => {
       try {
         const seenKey = `seen_chat_reply_${user.nisn}`;
         const seen: string[] = JSON.parse(sessionStorage.getItem(seenKey) || '[]');
 
-        if (DEMO_MODE) {
-          const local = JSON.parse(localStorage.getItem('demo_chat') || '[]');
-          const unseen = local.filter((m: any) => m.reply && !seen.includes(m.id));
+        if (!GAS_URL) return;
+        const res = await fetch(`${GAS_URL}?action=getMessages&nisn=${user.nisn}`);
+        const result = await res.json();
+        if (result.success) {
+          const unseen = (result.data || []).filter((m: any) => m.reply && !seen.includes(m.id));
           if (unseen.length > 0) {
             setHasUnread(true);
             const messagesText = unseen.map((u: any) => `${u.nama || u.nisn}: ${u.reply}`).join('\n\n');
@@ -48,73 +48,55 @@ export default function Dashboard({ user, onLogout }: DashboardProps) {
             const merged = Array.from(new Set([...seen, ...unseen.map((u: any) => u.id)]));
             sessionStorage.setItem(seenKey, JSON.stringify(merged));
           }
-        } else {
-          const res = await fetch(`${GAS_URL}?action=getMessages&nisn=${user.nisn}`);
-          const result = await res.json();
-          if (result.success) {
-            const unseen = (result.data || []).filter((m: any) => m.reply && !seen.includes(m.id));
-            if (unseen.length > 0) {
-              setHasUnread(true);
-              const messagesText = unseen.map((u: any) => `${u.nama || u.nisn}: ${u.reply}`).join('\n\n');
-              Swal.fire({ icon: 'info', title: 'Anda mendapat balasan', html: `<pre style="text-align:left">${messagesText}</pre>` , confirmButtonColor: '#1B5E20' });
-              const merged = Array.from(new Set([...seen, ...unseen.map((u: any) => u.id)]));
-              sessionStorage.setItem(seenKey, JSON.stringify(merged));
-            }
-          }
         }
       } catch (err) {
         console.error('Check unread error', err);
       }
     };
     checkUnread();
-  }, [user.nisn, isAdminMode]);
+  }, [user.nisn]);
 
   const loadJurnalData = async () => {
     setLoading(true);
-    if (DEMO_MODE) {
-      const demoData = JSON.parse(localStorage.getItem(`jurnal_${user.nisn}`) || '{}');
-      setJurnalData(demoData);
-      setLoading(false);
-    } else {
-      try {
-        const response = await fetch(`${GAS_URL}?action=getData&nisn=${user.nisn}`);
-        const result = await response.json();
-        if (result.success) {
-          const keyMap: Record<string, string> = { alquran: 'quran', jujur: 'kejujuran' };
-          const normalized: Record<string, JournalEntry[]> = {};
-          const raw = result.data || {};
-          
-          Object.entries(raw).forEach(([k, arr]) => {
-            const clientKey = keyMap[k] || k;
-            if (!Array.isArray(arr)) {
-              normalized[clientKey] = [];
-              return;
+    try {
+      if (!GAS_URL) throw new Error('VITE_GAS_URL belum diatur');
+      const response = await fetch(`${GAS_URL}?action=getData&nisn=${user.nisn}`);
+      const result = await response.json();
+      if (result.success) {
+        const keyMap: Record<string, string> = { alquran: 'quran', jujur: 'kejujuran' };
+        const normalized: Record<string, JournalEntry[]> = {};
+        const raw = result.data || {};
+
+        Object.entries(raw).forEach(([k, arr]) => {
+          const clientKey = keyMap[k] || k;
+          if (!Array.isArray(arr)) {
+            normalized[clientKey] = [];
+            return;
+          }
+          normalized[clientKey] = arr.map((entry: any) => {
+            const e = { ...entry };
+
+            if (e.tanggal) {
+              const d = new Date(e.tanggal);
+              if (!isNaN(d.getTime())) e.tanggal = d.toISOString().split('T')[0];
             }
-            normalized[clientKey] = arr.map((entry: any) => {
-              const e = { ...entry };
-              
-              if (e.tanggal) {
-                const d = new Date(e.tanggal);
-                if (!isNaN(d.getTime())) e.tanggal = d.toISOString().split('T')[0];
-              }
-              if (e.puasaKe === undefined && e.puasa_ke !== undefined) e.puasaKe = parseInt(e.puasa_ke, 10);
-              if (e.puasaKe !== undefined) e.puasaKe = parseInt(e.puasaKe, 10) || 0;
-              
-              e.uniqueId = e.uniqueId || e.id || `${e.nisn || ''}-${e.tanggal || ''}-${e.puasaKe || ''}`;
-              return e;
-            });
+            if (e.puasaKe === undefined && e.puasa_ke !== undefined) e.puasaKe = parseInt(e.puasa_ke, 10);
+            if (e.puasaKe !== undefined) e.puasaKe = parseInt(e.puasaKe, 10) || 0;
+
+            e.uniqueId = e.uniqueId || e.id || `${e.nisn || ''}-${e.tanggal || ''}-${e.puasaKe || ''}`;
+            return e;
           });
-          
-          Object.keys(KATEGORI_CONFIG).forEach(k => {
-            if (!normalized[k]) normalized[k] = [];
-          });
-          setJurnalData(normalized);
-        }
-      } catch (error) {
-        console.error('Error loading data:', error);
-      } finally {
-        setLoading(false);
+        });
+
+        Object.keys(KATEGORI_CONFIG).forEach((k) => {
+          if (!normalized[k]) normalized[k] = [];
+        });
+        setJurnalData(normalized);
       }
+    } catch (error) {
+      console.error('Error loading data:', error);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -162,9 +144,6 @@ export default function Dashboard({ user, onLogout }: DashboardProps) {
     newData[category].push(entry);
     setJurnalData(newData);
 
-    if (DEMO_MODE) {
-      localStorage.setItem(`jurnal_${user.nisn}`, JSON.stringify(newData));
-    }
   };
 
   // Calculate progress
@@ -221,6 +200,14 @@ export default function Dashboard({ user, onLogout }: DashboardProps) {
       </header>
 
       <main className="max-w-4xl mx-auto px-4 py-6 space-y-6">
+        <div
+          role="alert"
+          className="rounded-2xl border border-amber-300/80 bg-amber-50/95 p-4 flex gap-3 shadow-sm"
+        >
+          <AlertTriangle className="text-amber-600 shrink-0 mt-0.5" size={22} />
+          <p className="text-sm text-amber-950 leading-relaxed">{STUDENT_DASHBOARD_WARNING}</p>
+        </div>
+
         {/* Profil Siswa */}
         <div className="bg-white rounded-2xl shadow-lg p-5 border border-islamic-green/10">
           <div className="flex items-center gap-4">
@@ -270,6 +257,8 @@ export default function Dashboard({ user, onLogout }: DashboardProps) {
                 : `${filledCategories}/${totalCategories} kategori terisi. Lengkapi semua kategori!`}
           </p>
         </div>
+
+        <ProgressCalendar jurnalData={jurnalData} loading={loading} />
 
         {/* Menu Grid */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -333,7 +322,7 @@ export default function Dashboard({ user, onLogout }: DashboardProps) {
         {hasUnread && <span className="absolute right-4 top-2 w-3 h-3 bg-red-600 rounded-full ring-2 ring-white" />}
       </button>
 
-      <Chat user={user} isOpen={chatOpen} onClose={() => setChatOpen(false)} isAdmin={isAdminMode} />
+      <Chat user={user} isOpen={chatOpen} onClose={() => setChatOpen(false)} />
     </div>
   );
 }

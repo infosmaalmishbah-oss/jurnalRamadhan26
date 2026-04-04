@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { Send, X } from 'lucide-react';
 import Swal from 'sweetalert2';
-import { GAS_URL, DEMO_MODE } from '../config';
+import { GAS_URL } from '../config';
 import { Message, User } from '../types';
 
 interface ChatProps {
@@ -47,13 +47,8 @@ export default function Chat({ user, isOpen, onClose, isAdmin }: ChatProps) {
   }, [isOpen, messages, user]);
 
   const loadMessages = async () => {
-    if (DEMO_MODE) {
-      const local = JSON.parse(localStorage.getItem('demo_chat') || '[]');
-      setMessages(local);
-      return;
-    }
-
     try {
+      if (!GAS_URL) return;
       if (isAdmin) {
         const res = await fetch(`${GAS_URL}?action=getAllMessages`);
         const result = await res.json();
@@ -83,17 +78,8 @@ export default function Chat({ user, isOpen, onClose, isAdmin }: ChatProps) {
 
     setSending(true);
 
-    if (DEMO_MODE) {
-      const local = JSON.parse(localStorage.getItem('demo_chat') || '[]');
-      local.push(msg);
-      localStorage.setItem('demo_chat', JSON.stringify(local));
-      setMessages(local);
-      setText('');
-      setSending(false);
-      return;
-    }
-
     try {
+      if (!GAS_URL) throw new Error('Server chat tidak dikonfigurasi');
       const response = await fetch(GAS_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'text/plain;charset=UTF-8' },
@@ -121,18 +107,8 @@ export default function Chat({ user, isOpen, onClose, isAdmin }: ChatProps) {
 
   const handleReply = async (id: string, replyText: string) => {
     if (!replyText.trim()) return;
-    if (DEMO_MODE) {
-      const local = JSON.parse(localStorage.getItem('demo_chat') || '[]');
-      const idx = local.findIndex((m: any) => m.id === id);
-      if (idx >= 0) {
-        local[idx].reply = replyText.trim();
-        localStorage.setItem('demo_chat', JSON.stringify(local));
-        setMessages(local);
-      }
-      return;
-    }
-
     try {
+      if (!GAS_URL) throw new Error('Server chat tidak dikonfigurasi');
       const response = await fetch(GAS_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'text/plain;charset=UTF-8' },
