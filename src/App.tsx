@@ -7,10 +7,12 @@ import React, { useState, useEffect } from 'react';
 import Login from './components/Login';
 import Dashboard from './components/Dashboard';
 import AdminDashboard from './components/AdminDashboard';
+import ThemeToggle from './components/ThemeToggle';
+import { ThemeProvider } from './context/ThemeContext';
 import { resolveIsAdmin } from './config';
 import type { User } from './types';
 
-export default function App() {
+function AppRoutes() {
   const [user, setUser] = useState<User | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
 
@@ -52,7 +54,7 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen font-sans text-gray-900">
+    <div className="min-h-screen font-sans text-gray-900 dark:text-gray-100 dark:bg-gray-950">
       {isAdmin ? (
         <AdminDashboard adminUser={user} onLogout={handleLogout} />
       ) : user ? (
@@ -60,6 +62,15 @@ export default function App() {
       ) : (
         <Login onLogin={handleLogin} />
       )}
+      <ThemeToggle />
     </div>
+  );
+}
+
+export default function App() {
+  return (
+    <ThemeProvider>
+      <AppRoutes />
+    </ThemeProvider>
   );
 }

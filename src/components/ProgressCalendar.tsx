@@ -57,21 +57,21 @@ export default function ProgressCalendar({ jurnalData, loading }: ProgressCalend
     const iso = `${cursor.y}-${pad(cursor.m + 1)}-${pad(d)}`;
     const n = filledMap.get(iso) ?? 0;
     if (n === 0)
-      return 'bg-gray-100 text-gray-500 border border-gray-200';
+      return 'bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 border border-gray-200 dark:border-gray-600';
     if (n >= totalCats)
       return 'bg-gradient-to-br from-islamic-green to-green-600 text-white border border-green-700 shadow-sm';
-    return 'bg-amber-100 text-amber-900 border border-amber-300';
+    return 'bg-amber-100 dark:bg-amber-900/40 text-amber-900 dark:text-amber-100 border border-amber-300 dark:border-amber-800';
   };
 
   return (
-    <div className="bg-white rounded-2xl shadow-lg p-5 border border-islamic-green/10">
+    <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-lg p-5 border border-islamic-green/10 dark:border-gray-700">
       <div className="flex items-center justify-between mb-4">
-        <h3 className="font-semibold text-gray-800">Kalender progres</h3>
+        <h3 className="font-semibold text-gray-800 dark:text-white">Kalender progres</h3>
         <div className="flex items-center gap-1">
           <button
             type="button"
             aria-label="Bulan sebelumnya"
-            className="p-2 rounded-lg hover:bg-gray-100 text-islamic-green"
+            className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 text-islamic-green dark:text-green-400"
             onClick={() =>
               setCursor((c) => {
                 const nm = c.m - 1;
@@ -82,13 +82,13 @@ export default function ProgressCalendar({ jurnalData, loading }: ProgressCalend
           >
             <ChevronLeft size={20} />
           </button>
-          <span className="text-sm font-medium text-gray-700 min-w-[10rem] text-center capitalize">
+          <span className="text-sm font-medium text-gray-700 dark:text-gray-200 min-w-[10rem] text-center capitalize">
             {label}
           </span>
           <button
             type="button"
             aria-label="Bulan berikutnya"
-            className="p-2 rounded-lg hover:bg-gray-100 text-islamic-green"
+            className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 text-islamic-green dark:text-green-400"
             onClick={() =>
               setCursor((c) => {
                 const nm = c.m + 1;
@@ -103,10 +103,10 @@ export default function ProgressCalendar({ jurnalData, loading }: ProgressCalend
       </div>
 
       {loading ? (
-        <p className="text-sm text-gray-500">Memuat data jurnal…</p>
+        <p className="text-sm text-gray-500 dark:text-gray-400">Memuat data jurnal…</p>
       ) : (
         <>
-          <div className="grid grid-cols-7 gap-1 text-center text-xs font-medium text-gray-500 mb-2">
+          <div className="grid grid-cols-7 gap-1 text-center text-xs font-medium text-gray-500 dark:text-gray-400 mb-2">
             {['Min', 'Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab'].map((w) => (
               <div key={w}>{w}</div>
             ))}
@@ -126,7 +126,7 @@ export default function ProgressCalendar({ jurnalData, loading }: ProgressCalend
               ),
             )}
           </div>
-          <div className="flex flex-wrap gap-4 mt-4 text-xs text-gray-600">
+          <div className="flex flex-wrap gap-4 mt-4 text-xs text-gray-600 dark:text-gray-400">
             <span className="flex items-center gap-2">
               <span className="w-4 h-4 rounded bg-gradient-to-br from-islamic-green to-green-600 border border-green-700" />
               Lengkap ({totalCats}/{totalCats})

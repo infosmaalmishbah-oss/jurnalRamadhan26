@@ -32,6 +32,8 @@ function doGet(e) {
         return handleGetAllMessages();
       case 'getAllStudentsProgress':
         return handleGetAllStudentsProgress();
+      case 'getSettings':
+        return handleGetSettings();
       case 'adminLogin':
         return handleAdminLogin(e.parameter.password);
       default:
@@ -54,6 +56,8 @@ function doPost(e) {
         return handleSendMessage(data);
       case 'replyMessage':
         return handleReplyMessage(data);
+      case 'updateSettings':
+        return handleUpdateSettings(data);
       default:
         return sendError('Action tidak dikenali');
     }
@@ -103,6 +107,42 @@ function sendError(message) {
   return ContentService.createTextOutput(JSON.stringify({ success: false, message: message })).setMimeType(
     ContentService.MimeType.JSON
   );
+}
+
+// ========== PENGATURAN APP (input jurnal siswa) ==========
+function isJurnalInputDisabled() {
+  return PropertiesService.getScriptProperties().getProperty('JURNAL_INPUT_DISABLED') === 'true';
+}
+
+/** Publik: siswa & admin baca status */
+function handleGetSettings() {
+  return sendSuccess({
+    jurnalInputEnabled: !isJurnalInputDisabled(),
+    serverTime: new Date().toISOString()
+  });
+}
+
+/**
+ * Ubah pengaturan. Wajib: ADMIN_PASSWORD di Script properties (sama untuk adminLogin legacy).
+ * Body: { adminPassword, jurnalInputEnabled: boolean }
+ */
+function handleUpdateSettings(data) {
+  var props = PropertiesService.getScriptProperties();
+  var adminPwd = props.getProperty('ADMIN_PASSWORD') || '';
+  if (!adminPwd) {
+    return sendError('Set property ADMIN_PASSWORD di Project Settings > Script properties');
+  }
+  if (!data || data.adminPassword !== adminPwd) {
+    return sendError('Password admin tidak valid');
+  }
+  if (data.jurnalInputEnabled === false) {
+    props.setProperty('JURNAL_INPUT_DISABLED', 'true');
+  } else {
+    props.deleteProperty('JURNAL_INPUT_DISABLED');
+  }
+  return sendSuccess({
+    jurnalInputEnabled: !isJurnalInputDisabled()
+  });
 }
 
 // ========== NISN & ADMIN ==========
@@ -373,6 +413,9 @@ function parseJurnalEntry(row, category) {
 
 // ========== SAVE JURNAL ==========
 function handleSaveJurnal(data) {
+  if (isJurnalInputDisabled()) {
+    return sendError('Pengisian jurnal ditutup sementara oleh admin sekolah');
+  }
   const ss = getSS();
   const category = data.kategori;
   const sheetMap = {

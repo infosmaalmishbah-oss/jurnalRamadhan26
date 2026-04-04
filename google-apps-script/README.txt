@@ -6,5 +6,10 @@ Sheet "siswa" (disarankan):
 
 Action GET baru untuk panel admin web:
   getAllStudentsProgress — agregasi progres semua siswa + hitungan per sheet jurnal.
+  getSettings — status { jurnalInputEnabled } untuk siswa & admin.
+
+POST action updateSettings — body { adminPassword, jurnalInputEnabled }.
+  Wajib set ADMIN_PASSWORD di Script properties. Jika jurnalInputEnabled=false,
+  siswa tidak bisa saveJurnal (server menolak).
 
 Pastikan URL deployment sama dengan VITE_GAS_URL di frontend.

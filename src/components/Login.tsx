@@ -102,8 +102,8 @@ export default function Login({ onLogin }: LoginProps) {
   };
 
   return (
-    <div className="min-h-screen gradient-animated islamic-pattern flex flex-col items-center justify-center p-4 pb-16">
-      <div className="glass rounded-3xl p-8 md:p-12 max-w-md w-full shadow-2xl ring-1 ring-white/40">
+    <div className="min-h-screen gradient-animated islamic-pattern flex flex-col items-center justify-center p-4 pb-16 pr-16 dark:from-gray-900 dark:via-gray-950 dark:to-gray-900">
+      <div className="glass dark:bg-gray-900/70 dark:ring-gray-600 rounded-3xl p-8 md:p-12 max-w-md w-full shadow-2xl ring-1 ring-white/40">
         <div className="text-center mb-8">
           <div className="w-24 h-24 mx-auto mb-5 rounded-full bg-white shadow-lg flex items-center justify-center overflow-hidden animate-float ring-4 ring-islamic-green/10">
             <img
@@ -117,17 +117,17 @@ export default function Login({ onLogin }: LoginProps) {
               }}
             />
           </div>
-          <h1 className="text-2xl md:text-3xl text-black mb-2 drop-shadow-sm font-serif leading-snug">
+          <h1 className="text-2xl md:text-3xl text-black dark:text-white mb-2 drop-shadow-sm font-serif leading-snug">
             السَّلاَمُ عَلَيْكُمْ وَرَحْمَةُ اللهِ وَبَرَكَاتُهُ
           </h1>
-          <p className="text-black/85 text-sm md:text-base leading-relaxed">
+          <p className="text-black/85 dark:text-gray-200 text-sm md:text-base leading-relaxed">
             Jurnal Ramadhan
             <br />
             <span className="font-semibold text-islamic-green">
               SMAS Al-Mishbah Quranic School
             </span>
             <br />
-            <span className="text-black/70">Banda Aceh</span>
+            <span className="text-black/70 dark:text-gray-400">Banda Aceh</span>
           </p>
         </div>
 
@@ -145,7 +145,7 @@ export default function Login({ onLogin }: LoginProps) {
               inputMode="numeric"
               maxLength={10}
               autoComplete="username"
-              className="w-full pl-12 pr-4 py-4 rounded-xl bg-white/95 border-2 border-white/80 focus:border-islamic-gold focus:bg-white outline-none transition-all duration-300 text-gray-800 placeholder-gray-400 shadow-inner"
+              className="w-full pl-12 pr-4 py-4 rounded-xl bg-white/95 dark:bg-gray-800 border-2 border-white/80 dark:border-gray-600 focus:border-islamic-gold focus:bg-white dark:focus:bg-gray-800 outline-none transition-all duration-300 text-gray-800 dark:text-white placeholder-gray-400 shadow-inner"
             />
           </div>
           <button
@@ -158,14 +158,14 @@ export default function Login({ onLogin }: LoginProps) {
           </button>
         </form>
 
-        <div className="mt-6 rounded-2xl bg-white/35 border border-white/50 px-4 py-3 flex gap-3 text-left">
+        <div className="mt-6 rounded-2xl bg-white/35 dark:bg-gray-800/60 border border-white/50 dark:border-gray-600 px-4 py-3 flex gap-3 text-left">
           <ShieldCheck
             className="text-islamic-green shrink-0 mt-0.5"
             size={22}
             strokeWidth={2}
           />
-          <div className="text-xs text-black/80 leading-relaxed">
-            <p className="font-semibold text-islamic-green mb-1">Satu pintu masuk</p>
+          <div className="text-xs text-black/80 dark:text-gray-300 leading-relaxed">
+            <p className="font-semibold text-islamic-green dark:text-green-400 mb-1">Satu pintu masuk</p>
             <p>
               Siswa dan pengurus memakai NISN yang sama seperti di{' '}
               <strong>Sheet Siswa</strong>. Verifikasi selalu melalui Google Apps Script /

@@ -11,9 +11,19 @@ interface JournalModalProps {
   history: JournalEntry[];
   onClose: () => void;
   onSave: (entry: JournalEntry) => void;
+  /** Hanya lihat riwayat; form entri baru disembunyikan */
+  readOnly?: boolean;
 }
 
-export default function JournalModal({ user, category, config, history, onClose, onSave }: JournalModalProps) {
+export default function JournalModal({
+  user,
+  category,
+  config,
+  history,
+  onClose,
+  onSave,
+  readOnly = false,
+}: JournalModalProps) {
   const [tanggal, setTanggal] = useState(() => {
     const d = new Date();
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
@@ -30,7 +40,8 @@ export default function JournalModal({ user, category, config, history, onClose,
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+    if (readOnly) return;
+
     if (!tanggal || !puasaKe) {
       Swal.fire({
         icon: 'warning',
@@ -207,7 +218,7 @@ export default function JournalModal({ user, category, config, history, onClose,
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-0">
       <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose}></div>
       
-      <div className="relative w-full max-w-3xl max-h-[90vh] bg-white rounded-2xl shadow-2xl flex flex-col overflow-hidden">
+      <div className="relative w-full max-w-3xl max-h-[90vh] bg-white dark:bg-gray-900 rounded-2xl shadow-2xl flex flex-col overflow-hidden border border-gray-200 dark:border-gray-700">
         {/* Header */}
         <div className={`bg-gradient-to-r ${config.gradient} text-white p-5 flex items-center justify-between shrink-0`}>
           <div className="flex items-center gap-3">
@@ -227,8 +238,14 @@ export default function JournalModal({ user, category, config, history, onClose,
 
         {/* Body */}
         <div className="flex-1 overflow-y-auto p-5 space-y-6">
+          {readOnly ? (
+            <div className="rounded-xl border border-amber-200 dark:border-amber-900 bg-amber-50 dark:bg-amber-950/40 px-4 py-3 text-sm text-amber-950 dark:text-amber-100">
+              Mode baca saja: admin menutup pengisian jurnal. Anda hanya dapat melihat riwayat di bawah.
+            </div>
+          ) : null}
           {/* Form Section */}
-          <div className="bg-gray-50 rounded-xl p-5 border border-gray-200">
+          {!readOnly ? (
+          <div className="bg-gray-50 dark:bg-gray-800/50 rounded-xl p-5 border border-gray-200 dark:border-gray-700">
             <h3 className="font-semibold text-gray-800 mb-4 flex items-center gap-2">
               <PlusCircle size={18} className="text-islamic-green" /> 
               Tambah Jurnal Hari Ini
@@ -316,16 +333,17 @@ export default function JournalModal({ user, category, config, history, onClose,
               </button>
             </form>
           </div>
+          ) : null}
 
           {/* History Section */}
           <div>
-            <h3 className="font-semibold text-gray-800 mb-3 flex items-center gap-2">
+            <h3 className="font-semibold text-gray-800 dark:text-white mb-3 flex items-center gap-2">
               <History size={18} className="text-islamic-green" /> 
               Riwayat Jurnal (Hari 1-30)
             </h3>
-            <div className="overflow-x-auto rounded-xl border border-gray-200">
+            <div className="overflow-x-auto rounded-xl border border-gray-200 dark:border-gray-700">
               <table className="w-full text-sm">
-                <thead className="bg-islamic-green text-white">
+                <thead className="bg-islamic-green text-white dark:bg-green-900">
                   <tr>
                     <th className="px-4 py-3 text-left whitespace-nowrap">Puasa Ke-</th>
                     <th className="px-4 py-3 text-left whitespace-nowrap">Tanggal</th>
